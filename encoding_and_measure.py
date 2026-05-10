@@ -14,7 +14,9 @@ TARGET_BITRATE = [
 ENCODER = "libx265"
 
 FFMPEG_PATH = "../resource/ffmpeg"
-VMAF_MODEL = "model/vmaf_v0.6.1.json"
+VMAF_MODEL = {'4K': "model/vmaf_4k_v0.6.1.json",
+              'FHD': "model/vmaf_v0.6.1.json"}
+
 UVQ_PATH = "../uvq"
 
 class EncodingAndMeasure:
@@ -34,6 +36,22 @@ class EncodingAndMeasure:
     def __get_candidate_files(self, target_path):
         path = Path(target_path)
         return list(path.glob("*.y4m"))
+
+    def __get_y4m_resolution(self, file_path):
+        with open(file_path, 'rb') as f:
+            header = f.readline().decode('ascii')
+
+            width = None
+            height = None
+
+            parts = header.split(' ')
+            for part in parts:
+                if part.startswith('W'):
+                    width = int(part[1:])
+                elif part.startswith('H'):
+                    height = int(part[1:])
+
+            return width, height
 
     def __parse_result(self, target_name, result_file, uvq_score):
         try:
@@ -84,7 +102,13 @@ class EncodingAndMeasure:
                 target_file = os.path.join(self.output_path, f'{raw_file.stem}_{format(br)}.mp4')
                 encoded_files.append(target_file)
                 self.__encode(br, raw_file, target_file)
-                self.__measure(raw_file, target_file, VMAF_MODEL)
+                width, height = self.__get_y4m_resolution(raw_file)
+                if width * height >= 3840 * 2160:
+                    MODEL_IDX = "4K"
+                else:
+                    MODEL_IDX = "FHD"
+
+                self.__measure(raw_file, target_file, VMAF_MODEL[MODEL_IDX])
                 idx += 1
 
         self.__write_result_to_csv()
